@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Task Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@200;300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Assistant', sans-serif;
+            background-color: #f1f5f9;
+        }
+        .tab-active {
+            border-bottom: 3px solid #0f172a;
+            color: #0f172a;
+        }
+        .status-new { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+        .status-inprogress { background-color: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+        .status-completed { background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .status-overdue { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        
+        .task-card { cursor: grab; transition: transform 0.1s; }
+        .task-card:active { cursor: grabbing; transform: scale(1.02); }
+        
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="p-0 text-right" dir="rtl">
+
+    <div class="flex flex-col min-h-screen">
+        <!-- Main Header -->
+        <header class="bg-slate-900 text-white p-6 shadow-xl no-print">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-4">
+                    <div class="bg-blue-600 p-3 rounded-lg">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-extrabold tracking-tight">EXECUTIVE DASHBOARD</h1>
+                        <p class="text-slate-400 text-sm font-light uppercase tracking-widest">Action Items & Strategic Tracking</p>
+                    </div>
+                </div>
+                <div class="flex gap-4">
+                    <button id="newMeetingBtn" class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-lg font-bold transition-all flex items-center gap-2">
+                        <span>+ פגישה חדשה</span>
+                    </button>
+                    <button onclick="exportToPDF()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm transition-all border border-slate-600">
+                        ייצוא דוח PDF
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Bar -->
+        <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 no-print">
+            <div class="max-w-7xl mx-auto flex px-6">
+                <button id="tabMeetings" class="px-8 py-4 font-bold text-slate-500 tab-active transition-all" onclick="switchTab('meetings')">פגישות</button>
+                <button id="tabActions" class="px-8 py-4 font-bold text-slate-500 transition-all" onclick="switchTab('actions')">מרכז משימות הנהלה</button>
+            </div>
+        </nav>
+
+        <main class="flex-grow p-6 max-w-7xl mx-auto w-full">
+            
+            <!-- VIEW 1: MEETINGS -->
+            <div id="meetingsView">
+                <div id="meetingForm" class="hidden bg-white rounded-2xl shadow-xl p-8 mb-10 border border-slate-200">
+                    <h2 class="text-2xl font-bold mb-6 text-slate-800 border-b pb-4">סיכום פגישה אסטרטגית</h2>
+                    <input type="hidden" id="editingId">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">נושא הפגישה</label>
+                            <input type="text" id="subject" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-lg">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">תאריך</label>
+                            <input type="date" id="date" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">פורום משתתפים</label>
+                        <input type="text" id="participants" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+
+                    <div class="mb-8">
+                        <label class="block text-xs font-bold text-slate-500 mb-2 uppercase">סיכום ותוכן הפגישה</label>
+                        <textarea id="content" rows="8" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm leading-relaxed"></textarea>
+                    </div>
+
+                    <div class="mb-8 p-6 bg-slate-900 rounded-2xl text-white">
+                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                            <svg class="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z"></path><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd"></path></svg>
+                            הגדרת Action Items
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+                            <input type="text" id="actionItemInput" class="md:col-span-1 p-3 bg-slate-800 border border-slate-700 rounded-xl outline-none focus:border-blue-500" placeholder="מה המשימה?">
+                            <input type="text" id="actionOwnerInput" class="p-3 bg-slate-800 border border-slate-700 rounded-xl outline-none focus:border-blue-500" placeholder="אחראי">
+                            <!-- Modified Date Input with verbal options -->
+                            <div class="relative">
+                                <input list="dateOptions" type="text" id="actionDueDateInput" class="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl outline-none focus:border-blue-500 text-white" placeholder="דדליין / תאריך">
+                                <datalist id="dateOptions">
+                                    <option value="פגישה הבאה"></option>
+                                    <option value="לפי תיעדוף גרסה"></option>
+                                </datalist>
+                                <input type="date" id="actionDueDateCalendar" class="absolute left-2 top-3 opacity-0 w-6 h-6 cursor-pointer" oninput="document.getElementById('actionDueDateInput').value = this.value">
+                            </div>
+                            <input type="text" id="actionNoteInput" class="md:col-span-2 p-3 bg-slate-800 border border-slate-700 rounded-xl outline-none focus:border-blue-500" placeholder="הערת התקדמות">
+                        </div>
+                        <div class="flex justify-end gap-2 mb-4">
+                            <button id="addActionBtn" class="bg-blue-600 text-white px-8 py-2 rounded-xl hover:bg-blue-500 font-bold">הוסף לרשימה</button>
+                            <button id="updateActionBtn" class="hidden bg-indigo-600 text-white px-8 py-2 rounded-xl hover:bg-indigo-500 font-bold">עדכן משימה</button>
+                        </div>
+                        <ul id="actionItemsList" class="space-y-3"></ul>
+                    </div>
+
+                    <div class="flex justify-end gap-4 border-t pt-6">
+                        <button id="cancelBtn" class="px-8 py-3 text-slate-400 hover:text-slate-600 font-bold transition-all">ביטול</button>
+                        <button id="saveMeetingBtn" class="bg-slate-900 text-white px-12 py-3 rounded-xl hover:bg-black shadow-xl font-bold transition-all">שמור פגישה</button>
+                    </div>
+                </div>
+
+                <div id="meetingsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+                <div id="emptyMeetings" class="text-center py-24 hidden bg-white rounded-3xl border border-dashed border-slate-300">
+                    <div class="text-slate-300 text-6xl mb-4">📂</div>
+                    <h3 class="text-xl font-bold text-slate-500">אין פגישות רשומות במערכת</h3>
+                </div>
+            </div>
+
+            <!-- VIEW 2: EXECUTIVE DASHBOARD -->
+            <div id="actionsView" class="hidden space-y-8 animate-fadeIn">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1">סה"כ משימות</p>
+                        <h3 id="kpiTotal" class="text-3xl font-extrabold text-slate-800">0</h3>
+                        <div class="w-full bg-slate-100 h-1 mt-4 rounded-full overflow-hidden">
+                            <div class="bg-slate-400 h-full w-full"></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1">בביצוע</p>
+                        <h3 id="kpiInWork" class="text-3xl font-extrabold text-blue-600">0</h3>
+                        <div class="w-full bg-blue-50 h-1 mt-4 rounded-full overflow-hidden">
+                            <div id="kpiInWorkProgress" class="bg-blue-600 h-full w-0 transition-all duration-1000"></div>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 border-r-4 border-r-red-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1">באיחור (Critical)</p>
+                        <h3 id="kpiOverdue" class="text-3xl font-extrabold text-red-600">0</h3>
+                        <p class="text-[10px] text-red-400 mt-2 font-bold italic">דורש התייחסות מיידית</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1">אחוז ביצוע</p>
+                        <h3 id="kpiCompletionRate" class="text-3xl font-extrabold text-green-600">0%</h3>
+                        <div class="w-full bg-green-50 h-1 mt-4 rounded-full overflow-hidden">
+                            <div id="kpiCompletionProgress" class="bg-green-600 h-full w-0 transition-all duration-1000"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-4 items-center justify-between no-print">
+                    <div class="flex flex-wrap gap-3">
+                        <select id="filterOwner" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm outline-none font-bold">
+                            <option value="all">כל האחראים</option>
+                        </select>
+                        <select id="filterStatus" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm outline-none font-bold">
+                            <option value="all">כל הסטטוסים</option>
+                            <option value="completed">הושלם</option>
+                            <option value="inprogress">בביצוע</option>
+                            <option value="new">חדש</option>
+                            <option value="overdue">באיחור</option>
+                        </select>
+                        <select id="sortDeadline" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm outline-none font-bold">
+                            <option value="asc">מיון לפי דדליין (מהקרוב לרחוק)</option>
+                            <option value="desc">מיון לפי דדליין (מהרחוק לקרוב)</option>
+                        </select>
+                        <input type="text" id="searchTasks" class="bg-slate-50 border border-slate-200 p-2 rounded-lg text-sm outline-none px-4 w-64" placeholder="חיפוש חופשי (משימה, פגישה...)">
+                    </div>
+                    <div class="flex bg-slate-100 p-1 rounded-xl">
+                        <button id="btnViewTable" class="px-4 py-2 rounded-lg text-xs font-bold bg-white shadow-sm text-slate-800 cursor-default">תצוגת טבלה</button>
+                    </div>
+                </div>
+
+                <!-- TABLE VIEW -->
+                <div id="dashboardTableView" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table class="w-full text-right border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200">
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">סטטוס</th>
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">משימה</th>
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">אחראי</th>
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">דדליין</th>
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">הערות התקדמות</th>
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">פרויקט/פגישה</th>
+                                <th class="p-4 text-xs font-bold text-slate-500 uppercase">פעולות</th>
+                            </tr>
+                        </thead>
+                        <tbody id="executiveTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="p-6 text-center text-slate-400 text-xs no-print">
+            © 2024 Executive Meeting Notebook | Business Intelligence Layer
+        </footer>
+    </div>
+
+    <!-- Alert System -->
+    <div id="customAlert" class="fixed bottom-10 left-10 transform translate-y-20 opacity-0 transition-all duration-300 z-50 bg-slate-900 text-white p-4 rounded-xl shadow-2xl flex items-center gap-3">
+        <div id="alertIcon" class="text-blue-400 font-bold italic">INFO</div>
+        <div id="alertMsg" class="font-bold">Message</div>
+    </div>
+
+    <script>
+        const apiKey = ""; 
+        let meetings = [];
+        let currentActionItems = [];
+        let editingActionIndex = -1;
+
+        const els = {
+            meetingForm: document.getElementById('meetingForm'),
+            meetingsContainer: document.getElementById('meetingsContainer'),
+            emptyMeetings: document.getElementById('emptyMeetings'),
+            executiveTableBody: document.getElementById('executiveTableBody'),
+            actionItemsList: document.getElementById('actionItemsList'),
+            newMeetingBtn: document.getElementById('newMeetingBtn'),
+            saveMeetingBtn: document.getElementById('saveMeetingBtn'),
+            actionItemInput: document.getElementById('actionItemInput'),
+            actionOwnerInput: document.getElementById('actionOwnerInput'),
+            actionDueDateInput: document.getElementById('actionDueDateInput'),
+            actionNoteInput: document.getElementById('actionNoteInput'),
+            addActionBtn: document.getElementById('addActionBtn'),
+            updateActionBtn: document.getElementById('updateActionBtn'),
+            filterOwner: document.getElementById('filterOwner'),
+            filterStatus: document.getElementById('filterStatus'),
+            sortDeadline: document.getElementById('sortDeadline'),
+            searchTasks: document.getElementById('searchTasks')
+        };
+
+        function init() {
+            loadData();
+            setupEventListeners();
+            renderMeetings();
+            updateDashboard();
+        }
+
+        function setupEventListeners() {
+            els.newMeetingBtn.onclick = () => {
+                resetForm();
+                els.meetingForm.classList.remove('hidden');
+                els.newMeetingBtn.classList.add('hidden');
+            };
+
+            document.getElementById('cancelBtn').onclick = () => {
+                els.meetingForm.classList.add('hidden');
+                els.newMeetingBtn.classList.remove('hidden');
+            };
+
+            els.addActionBtn.onclick = addAction;
+            els.updateActionBtn.onclick = updateAction;
+            els.saveMeetingBtn.onclick = saveMeeting;
+            
+            els.filterOwner.onchange = updateDashboard;
+            els.filterStatus.onchange = updateDashboard;
+            els.sortDeadline.onchange = updateDashboard;
+            els.searchTasks.oninput = updateDashboard;
+        }
+
+        function addAction() {
+            const text = els.actionItemInput.value.trim();
+            if (!text) return;
+            currentActionItems.push({
+                text,
+                owner: els.actionOwnerInput.value.trim(),
+                dueDate: els.actionDueDateInput.value,
+                note: els.actionNoteInput.value.trim(),
+                completed: false,
+                status: 'new'
+            });
+            clearActionInputs();
+            renderActionItems();
+        }
+
+        function editActionInForm(idx) {
+            editingActionIndex = idx;
+            const item = currentActionItems[idx];
+            els.actionItemInput.value = item.text;
+            els.actionOwnerInput.value = item.owner || '';
+            els.actionDueDateInput.value = item.dueDate || '';
+            els.actionNoteInput.value = item.note || '';
+            els.addActionBtn.classList.add('hidden');
+            els.updateActionBtn.classList.remove('hidden');
+        }
+
+        function updateAction() {
+            if (editingActionIndex === -1) return;
+            currentActionItems[editingActionIndex] = {
+                ...currentActionItems[editingActionIndex],
+                text: els.actionItemInput.value.trim(),
+                owner: els.actionOwnerInput.value.trim(),
+                dueDate: els.actionDueDateInput.value,
+                note: els.actionNoteInput.value.trim()
+            };
+            editingActionIndex = -1;
+            els.addActionBtn.classList.remove('hidden');
+            els.updateActionBtn.classList.add('hidden');
+            clearActionInputs();
+            renderActionItems();
+        }
+
+        function clearActionInputs() {
+            els.actionItemInput.value = '';
+            els.actionOwnerInput.value = '';
+            els.actionDueDateInput.value = '';
+            els.actionNoteInput.value = '';
+        }
+
+        function saveMeeting() {
+            const subject = document.getElementById('subject').value.trim();
+            const date = document.getElementById('date').value;
+            const editingId = document.getElementById('editingId').value;
+
+            if (!subject || !date) {
+                showAlert("חובה למלא נושא ותאריך", "ERROR");
+                return;
+            }
+
+            const meetingData = {
+                id: editingId || Date.now().toString(),
+                subject, date,
+                participants: document.getElementById('participants').value,
+                content: document.getElementById('content').value,
+                actionItems: [...currentActionItems]
+            };
+
+            if (editingId) {
+                const idx = meetings.findIndex(m => m.id === editingId);
+                if (idx !== -1) meetings[idx] = meetingData;
+            } else {
+                meetings.unshift(meetingData);
+            }
+
+            saveData();
+            renderMeetings();
+            els.meetingForm.classList.add('hidden');
+            els.newMeetingBtn.classList.remove('hidden');
+            updateDashboard();
+            showAlert("הפגישה נשמרה בהצלחה");
+        }
+
+        function renderMeetings() {
+            els.emptyMeetings.classList.toggle('hidden', meetings.length > 0);
+            els.meetingsContainer.innerHTML = meetings.map(m => `
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start mb-6">
+                        <div>
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">${formatDate(m.date)}</span>
+                            <h3 class="text-xl font-extrabold text-slate-800 mt-1">${m.subject}</h3>
+                            <p class="text-xs text-slate-500 mt-2 flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"></path></svg>
+                                ${m.participants || 'אין משתתפים רשומים'}
+                            </p>
+                        </div>
+                        <div class="flex gap-2">
+                             <button onclick="exportToOutlook('${m.id}')" class="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Export to Outlook">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                            </button>
+                            <button onclick="editMeeting('${m.id}')" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="deleteMeeting('${m.id}')" class="p-2 text-slate-400 hover:text-red-600 transition-colors" title="Delete">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-slate-600 text-sm leading-relaxed mb-6 line-clamp-3">${m.content || 'אין סיכום כתוב...'}</div>
+                    <div class="flex justify-between items-center border-t pt-4">
+                        <span class="text-xs font-bold text-slate-400">${(m.actionItems || []).length} משימות</span>
+                        <div class="flex -space-x-2 space-x-reverse overflow-hidden">
+                             ${[...new Set((m.actionItems || []).map(i => i.owner))].filter(o => o).slice(0, 3).map(owner => `
+                                <div class="inline-flex items-center justify-center w-8 h-8 rounded-full border-2 border-white bg-slate-100 text-[10px] font-bold text-slate-600 uppercase" title="${owner}">
+                                    ${owner.charAt(0)}
+                                </div>
+                             `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateDashboard() {
+            const allTasks = [];
+            meetings.forEach(m => {
+                (m.actionItems || []).forEach((item, idx) => {
+                    allTasks.push({
+                        ...item,
+                        meetingId: m.id,
+                        meetingSubject: m.subject,
+                        meetingDate: m.date,
+                        itemIndex: idx
+                    });
+                });
+            });
+
+            const owners = [...new Set(allTasks.map(t => t.owner).filter(o => o))];
+            const currentOwnerFilter = els.filterOwner.value;
+            els.filterOwner.innerHTML = '<option value="all">כל האחראים</option>' + 
+                owners.map(o => `<option value="${o}" ${currentOwnerFilter === o ? 'selected' : ''}>${o}</option>`).join('');
+
+            let filteredTasks = allTasks.filter(t => {
+                const ownerMatch = els.filterOwner.value === 'all' || t.owner === els.filterOwner.value;
+                const statusMatch = els.filterStatus.value === 'all' || 
+                                    (els.filterStatus.value === 'overdue' && isOverdue(t)) ||
+                                    (els.filterStatus.value === 'completed' && t.completed) ||
+                                    (els.filterStatus.value === 'inprogress' && !t.completed && t.status === 'inprogress') ||
+                                    (els.filterStatus.value === 'new' && !t.completed && (t.status === 'new' || !t.status));
+                const searchMatch = !els.searchTasks.value || 
+                                     t.text.toLowerCase().includes(els.searchTasks.value.toLowerCase()) || 
+                                     t.meetingSubject.toLowerCase().includes(els.searchTasks.value.toLowerCase());
+                return ownerMatch && statusMatch && searchMatch;
+            });
+
+            // Sorting logic by Deadline
+            const sortDir = els.sortDeadline.value;
+            filteredTasks.sort((a, b) => {
+                // If text options are used, put them at the end or handle specifically
+                const isDateA = !isNaN(Date.parse(a.dueDate));
+                const isDateB = !isNaN(Date.parse(b.dueDate));
+                
+                if (!isDateA && !isDateB) return 0;
+                if (!isDateA) return 1;
+                if (!isDateB) return -1;
+
+                const dateA = new Date(a.dueDate);
+                const dateB = new Date(b.dueDate);
+                return sortDir === 'asc' ? dateA - dateB : dateB - dateA;
+            });
+
+            updateKPIs(allTasks);
+            renderDashboardTable(filteredTasks);
+        }
+
+        function updateKPIs(tasks) {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const overdue = tasks.filter(t => isOverdue(t)).length;
+            const inWork = tasks.filter(t => !t.completed && t.status === 'inprogress').length;
+            
+            document.getElementById('kpiTotal').innerText = total;
+            document.getElementById('kpiInWork').innerText = inWork;
+            document.getElementById('kpiOverdue').innerText = overdue;
+            
+            const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+            document.getElementById('kpiCompletionRate').innerText = `${rate}%`;
+            document.getElementById('kpiCompletionProgress').style.width = `${rate}%`;
+            document.getElementById('kpiInWorkProgress').style.width = `${total > 0 ? Math.round((inWork / total) * 100) : 0}%`;
+        }
+
+        function isOverdue(task) {
+            if (task.completed) return false;
+            if (!task.dueDate || isNaN(Date.parse(task.dueDate))) return false;
+            return new Date(task.dueDate) < new Date().setHours(0,0,0,0);
+        }
+
+        function getStatusLabel(task) {
+            if (task.completed) return { text: 'הושלם', class: 'status-completed' };
+            if (isOverdue(task)) return { text: 'באיחור', class: 'status-overdue' };
+            if (task.status === 'inprogress') return { text: 'בביצוע', class: 'status-inprogress' };
+            return { text: 'חדש', class: 'status-new' };
+        }
+
+        function renderDashboardTable(tasks) {
+            document.getElementById('executiveTableBody').innerHTML = tasks.map(t => {
+                const status = getStatusLabel(t);
+                return `
+                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                        <td class="p-4">
+                            <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase ${status.class}">${status.text}</span>
+                        </td>
+                        <td class="p-4">
+                            <div class="font-bold text-slate-800 ${t.completed ? 'line-through text-slate-300 font-normal' : ''}">${t.text}</div>
+                        </td>
+                        <td class="p-4 font-bold text-slate-600 text-xs uppercase">${t.owner || '-'}</td>
+                        <td class="p-4 text-xs font-bold ${isOverdue(t) ? 'text-red-600' : 'text-slate-400'}">
+                            ${formatDate(t.dueDate)}
+                        </td>
+                        <td class="p-4 text-xs text-slate-600 italic">
+                            ${t.note || '-'}
+                        </td>
+                        <td class="p-4">
+                            <div class="text-xs font-bold text-slate-800">${t.meetingSubject}</div>
+                            <div class="text-[9px] text-slate-400 uppercase">${formatDate(t.meetingDate)}</div>
+                        </td>
+                        <td class="p-4 flex gap-2">
+                             <button onclick="updateTaskStatus('${t.meetingId}', ${t.itemIndex}, ${!t.completed})" class="text-slate-400 hover:text-green-600 p-1">
+                                ${t.completed ? '↩️' : '✅'}
+                            </button>
+                             <button onclick="editMeeting('${t.meetingId}')" class="text-slate-400 hover:text-blue-600 p-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        window.updateTaskStatus = (mId, itemIdx, completed) => {
+            const m = meetings.find(p => p.id === mId);
+            if (m) {
+                m.actionItems[itemIdx].completed = completed;
+                m.actionItems[itemIdx].status = completed ? 'completed' : 'inprogress';
+                saveData();
+                updateDashboard();
+                renderMeetings();
+            }
+        };
+
+        window.editMeeting = (id) => {
+            const m = meetings.find(p => p.id === id);
+            if (!m) return;
+            resetForm();
+            document.getElementById('editingId').value = m.id;
+            document.getElementById('subject').value = m.subject;
+            document.getElementById('date').value = m.date;
+            document.getElementById('participants').value = m.participants;
+            document.getElementById('content').value = m.content;
+            currentActionItems = [...(m.actionItems || [])];
+            renderActionItems();
+            switchTab('meetings');
+            els.meetingForm.classList.remove('hidden');
+            window.scrollTo(0,0);
+        };
+
+        window.deleteMeeting = (id) => {
+            if (confirm("האם למחוק פגישה זו לצמיתות?")) {
+                meetings = meetings.filter(m => m.id !== id);
+                saveData();
+                renderMeetings();
+                updateDashboard();
+            }
+        };
+
+        function resetForm() {
+            document.getElementById('editingId').value = '';
+            document.getElementById('subject').value = '';
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            document.getElementById('participants').value = '';
+            document.getElementById('content').value = '';
+            currentActionItems = [];
+            editingActionIndex = -1;
+            renderActionItems();
+            els.updateActionBtn.classList.add('hidden');
+            els.addActionBtn.classList.remove('hidden');
+        }
+
+        function renderActionItems() {
+            els.actionItemsList.innerHTML = currentActionItems.map((item, idx) => `
+                <li class="flex items-center gap-3 bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                    <input type="checkbox" class="w-5 h-5 rounded-md border-slate-600 bg-slate-700" ${item.completed ? 'checked' : ''} onchange="toggleActionInForm(${idx})">
+                    <div class="flex-grow">
+                        <p class="text-sm font-bold ${item.completed ? 'line-through text-slate-500' : 'text-slate-100'}">${item.text}</p>
+                        <p class="text-[10px] text-slate-400 uppercase">${item.owner || '-'} | ${formatDate(item.dueDate)}</p>
+                        ${item.note ? `<p class="text-[10px] text-blue-300 italic">הערה: ${item.note}</p>` : ''}
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editActionInForm(${idx})" class="text-slate-400 hover:text-blue-400">ערוך</button>
+                        <button onclick="removeActionInForm(${idx})" class="text-red-400 hover:text-red-500">מחק</button>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        window.toggleActionInForm = (idx) => { currentActionItems[idx].completed = !currentActionItems[idx].completed; renderActionItems(); };
+        window.removeActionInForm = (idx) => { currentActionItems.splice(idx, 1); renderActionItems(); };
+
+        window.switchTab = (tab) => {
+            document.getElementById('meetingsView').classList.toggle('hidden', tab !== 'meetings');
+            document.getElementById('actionsView').classList.toggle('hidden', tab !== 'actions');
+            document.getElementById('tabMeetings').classList.toggle('tab-active', tab === 'meetings');
+            document.getElementById('tabActions').classList.toggle('tab-active', tab === 'actions');
+            if (tab === 'actions') updateDashboard();
+        };
+
+        function formatDate(d) {
+            if (!d) return "-";
+            if (isNaN(Date.parse(d))) return d; // Return verbal values as is
+            const date = new Date(d);
+            return `${date.getDate().toString().padStart(2,'0')}/${(date.getMonth()+1).toString().padStart(2,'0')}/${date.getFullYear().toString().slice(-2)}`;
+        }
+
+        function saveData() { localStorage.setItem('exec_notebook_v2', JSON.stringify(meetings)); }
+        function loadData() {
+            const d = localStorage.getItem('exec_notebook_v2');
+            if (d) meetings = JSON.parse(d);
+        }
+
+        function showAlert(msg, type = "SUCCESS") {
+            const alert = document.getElementById('customAlert');
+            const icon = document.getElementById('alertIcon');
+            icon.innerText = type;
+            icon.className = type === "SUCCESS" ? "text-green-400 font-bold" : "text-red-400 font-bold";
+            document.getElementById('alertMsg').innerText = msg;
+            alert.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => alert.classList.add('translate-y-20', 'opacity-0'), 3000);
+        }
+
+        window.exportToPDF = () => { window.print(); };
+
+        window.exportToOutlook = (id) => {
+            const m = meetings.find(p => p.id === id);
+            if (!m) return;
+            const subject = `${m.subject} - סיכום פגישה`;
+            const RLE = '\u202B';
+            const PDF = '\u202C';
+            let body = `${RLE}סיכום פגישה מיום: ${formatDate(m.date)}${PDF}\n\n`;
+            body += `${RLE}משתתפים: ${m.participants || '-'}${PDF}\n\n`;
+            body += `${RLE}תוכן:${PDF}\n${RLE}${m.content || ''}${PDF}\n\n`;
+            if (m.actionItems?.length) {
+                body += `${RLE}משימות לביצוע:${PDF}\n`;
+                m.actionItems.forEach((item, i) => {
+                    body += `${RLE}${i+1}. ${item.text} | אחראי: ${item.owner || '-'} | יעד: ${formatDate(item.dueDate)} | הערה: ${item.note || '-'}${PDF}\n`;
+                });
+            }
+            window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        };
+
+        init();
+    </script>
+</body>
+</html>
